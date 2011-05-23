@@ -1,15 +1,10 @@
 <?php
-
 /************************************************************
- * Bounce v0.1-alpha                                        *
+ * icarus v0.1-alpha -- an IRC framework for PHP            *
  * Author: rintaun - Matthew J. Lanigan <rintaun@gmail.com> *
  *                                                          *
  * Copyright 2011 Matthew J. Lanigan.                       *
- * See LICENSE file for licensing details.                  *
- ************************************************************
- * src/Bounce.php                                           *
- *                                                          *
- * Description: Bounce core                                 *
+ * See LICENSE file for licensing restrictions              *
  ************************************************************/
 
 ini_set('memory_limit', '512M');
