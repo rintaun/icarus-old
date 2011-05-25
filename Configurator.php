@@ -12,7 +12,7 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 final class Configurator extends Singleton
 {
 	private $configfile = "";
-	private $config = array();
+	public $config = array();
 
 	private $fd = NULL;
 
@@ -344,12 +344,6 @@ final class Configurator extends Singleton
 	private function save()
 	{
 		_log(L_DEBUG, "Configurator->save(): not implemented yet");
-	}
-
-	public function __get($name)
-	{
-		if (isset($this->config[$name]))
-			return $this->config[$name];
 	}
 
 	protected function _destroy()
