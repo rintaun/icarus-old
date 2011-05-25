@@ -236,7 +236,7 @@ final class Configurator extends Singleton
 					$start = $c;
 					for (; isset($data{$c}); $c++)
 					{
-						if (($data{$c} == "\n") || ($data{$c} == ';'))
+						if (($data{$c} == "\n") || ($data{$c} == ';') || ($data{$c} == '{'))
 							break;
 						if ((empty($curentry['varname'])) && (($data{$c} == ' ') || ($data{$c} == '=')))
 							break;
@@ -270,7 +270,7 @@ final class Configurator extends Singleton
 						$curentry['varlinenum'] = $linenumber;
 					}
 					
-					if (($data{$c} == ';') || ($data{$c} == "\n"))
+					if (($data{$c} == ';') || ($data{$c} == "\n") || ($data{$c} == '{'))
 						$c--;
 					break;
 			} /* switch */
@@ -297,14 +297,19 @@ final class Configurator extends Singleton
 
 	private function _build($data)
 	{
+		if (!is_array($data)) return $data;
+
 		$build = array();
 
 		foreach ($data AS $key => $value)
 		{
-			if (in_array($key, array('filename', 'varlinenum', 'sectlinenum', 'sectnum'))) continue;
+			if (($key != 0) && (in_array($key, array('filename', 'varlinenum', 'sectlinenum', 'sectnum')))) continue;
 
 			if (!empty($value['varname']))
 			{
+				// we don't care about case for section and variable names
+				$value['varname'] = strtolower($value['varname']);
+
 				if (isset($value['entries']))
 				{
 					if (!empty($value['vardata']))

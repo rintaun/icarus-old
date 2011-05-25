@@ -12,12 +12,15 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 abstract class Client {
 	private $sid = "";
 
-	final public function __construct($address, $port)
+	final public function __construct($name, $config)
 	{
-		$SH = SocketHandler::getInstance();
-		$this->sid = $SH->createSocket($address, $port, $this);
+		if ((!isset($config['server'])) || (!isset($config['port'])))
+			_die("Client %s: Didnt get a server or port value!", $name);
 
-		$this->_create();
+		$SH = SocketHandler::getInstance();
+		$this->sid = $SH->createSocket($config['server'], $config['port'], $this);
+
+		$this->_create($name, $config);
 	}
 
 	final public function __destruct()
@@ -46,6 +49,6 @@ abstract class Client {
 	}
 
 	abstract function parse($data);
-	abstract function _create();
+	abstract function _create($name, $config);
 	abstract function _destroy();
 }

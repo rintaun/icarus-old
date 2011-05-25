@@ -9,8 +9,6 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-declare(ticks=1);
-
 $GLOBALS['version'] = "0.1-alpha";
 $GLOBALS['fork'] = FALSE;
 
@@ -86,6 +84,8 @@ if ($GLOBALS['fork'] === true)
 	else
 	{
 		// we're in the child!
+		$logger = Logger::getInstance();
+		$logger->fork();
 	}
 
 }

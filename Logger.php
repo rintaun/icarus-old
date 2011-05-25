@@ -40,7 +40,7 @@ final class Logger extends Singleton
 
 	public function setLogfile($filename)
 	{
-		if (!empty($filename))
+		if ((!empty($filename)) && ($filename != $this->logfile))
 		{
 			if (is_resource($this->fd)) fclose($this->fd);
 
@@ -52,6 +52,8 @@ final class Logger extends Singleton
 	public function log($level, $format, $args=NULL)
 	{
 		$time = time();
+		
+		$format = trim($format);
 
 		if ((is_array($args)) && (!empty($args)))
 			$message = vsprintf($format, $args);
@@ -64,12 +66,12 @@ final class Logger extends Singleton
 			'message' => $message
 		);
 
-		$logentry = sprintf("[%s] %s", date("H:i", $time), $message);
+		$logentry = sprintf("[%s] %s\n", date("H:i", $time), $message);
 
 		if ($this->loglevel & $level)
 		{
 			if ($this->forked != TRUE)
-				echo $logentry."\n";
+				echo $logentry;
 			if (is_resource($this->fd))
 				fwrite($this->fd, $logentry);
 		}
@@ -78,6 +80,19 @@ final class Logger extends Singleton
 	public function fork()
 	{
 		$this->forked = TRUE;
+	}
+
+	public function debug($onoff)
+	{
+		switch ($onoff)
+		{
+			case TRUE:
+				$this->loglevel = $this->loglevel | L_DEBUG;
+				break;
+			case FALSE:
+				$this->loglevel = $this->loglevel & ~L_DEBUG;
+				break;
+		}
 	}
 
         protected function _destroy()

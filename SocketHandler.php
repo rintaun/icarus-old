@@ -34,26 +34,27 @@ final class SocketHandler extends Singleton
 
 	public function loop()
 	{
-		while (!$this->interrupt)
+		while ($this->interrupt === FALSE)
 		{
 			// do hooks such as timers here
 			
 			// First, build the read array from ALL available sockets.
 			$read = array();
-			foreach ($this->sockets AS $sid => $entry) $read[$sid] = $entry['socket'];
+			foreach ($this->sockets AS $sid => $entry) $read[] = $entry['socket'];
 
 			// Then build the write array from all the sockets in sendq.
 			$write = array();
-			foreach ($this->sendq AS $sid => $entry) $write[$sid] = $this->sockets[$entry['sid']]['socket'];
+			foreach ($this->sendq AS $sid => $entry) $write[] = $this->sockets[$sid]['socket'];
 			
 			// select doesn't actually check for exceptions, so we'll make our own later
 			$except = NULL;
 
-			if (empty($read) && empty($write)) _die("I find your lack of sockets... disturbing.");
+			if (empty($read) && empty($write)) _die("SocketHandler: I find your lack of sockets... disturbing.");
 
-			if (socket_select($read, $write, $except, 1) < 1) continue;
+			if (@socket_select($read, $write, $except, 1.0) < 1) continue;
 
 			// Then do them in reverse of the order we built them in!
+			// Only nobody cares about $except.
 
 			if (!empty($write))
 			{
@@ -97,7 +98,7 @@ final class SocketHandler extends Singleton
 					$sid = $this->getSID($socket);
 
 					// if it's a listener, then we have a connection.
-					if (self::getType($sid) == SH_LISTENER)
+					if (self::getType($sid) == SH_SERVER)
 					{
 						if (($client = @socket_accept($this->sockets[$sid]['socket'])) === FALSE) continue;
 						$csid = uniqid('c');
@@ -214,7 +215,10 @@ final class SocketHandler extends Singleton
 		else
 			$message = $format;
 
-		$this->sendq[$sid] .= $message;
+		if (isset($this->sendq[$sid]))
+			$this->sendq[$sid] .= $message;
+		else
+			$this->sendq[$sid] = $message;
 	}
 
 	protected function _destroy()
