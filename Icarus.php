@@ -9,26 +9,24 @@
 
 ini_set('memory_limit', '512M');
 
-if (!defined('_BOUNCE_')) die('This script may not be invoked directly.');
+define('_ICARUS_', TRUE);
 
-require_once("Singleton.php");
-require_once("Configurator.php");
-require_once("Logger.php");
-require_once("SocketHandler.php");
-require_once("Server.php");
+require_once("inc/includes.php");
 
-final class Bounce extends Singleton
+final class Icarus extends Singleton
 {
+	private $running = FALSE;
 
-	protected function __construct()
+	protected function _create()
 	{
 		Configurator::getInstance();
 	}
 
 	public function start()
 	{
+		$this->running = TRUE;
+
 		$SH = SocketHandler::getInstance();
-		$BS = Server::getInstance();
 		$SH->loop();
 	}
 
@@ -36,16 +34,20 @@ final class Bounce extends Singleton
 	{
 		$SH = SocketHandler::getInstance();
 		$SH->interrupt();
+
+		$this->running = FALSE;
 	}
 
+	public function isRunning()
+	{
+		return $this->running;
+	}
+	
 	protected function _destroy()
 	{
 	}
 }
 
-function _exit()
-{
-	_log(L_INFO, "Shutting down...");
-	$bounce = Bounce::getInstance();
-	$bounce->end();
-}
+// and now we need the core program, heh!
+
+require_once("inc/core.php");

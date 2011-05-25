@@ -7,12 +7,11 @@
  * See LICENSE file for licensing restrictions              *
  ************************************************************/
 
-if (!defined('_BOUNCE_')) die('This script may not be invoked directly.');
+if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
 define('SH_UNKNOWN', 0);
 define('SH_SERVER', 1);
 define('SH_CLIENT', 2);
-define('SH_LISTENER', 3);
 
 final class SocketHandler extends Singleton
 {
@@ -22,7 +21,7 @@ final class SocketHandler extends Singleton
 	private $sendq = array();
 	private $recvq = array();
 
-	protected function __construct()
+	protected function _create()
 	{
 	}
 
@@ -50,7 +49,7 @@ final class SocketHandler extends Singleton
 			// select doesn't actually check for exceptions, so we'll make our own later
 			$except = NULL;
 
-			if (empty($read) && empty($write)) continue;
+			if (empty($read) && empty($write)) _die("I find your lack of sockets... disturbing.");
 
 			if (socket_select($read, $write, $except, 1) < 1) continue;
 
@@ -58,26 +57,45 @@ final class SocketHandler extends Singleton
 
 			if (!empty($write))
 			{
-				foreach ($write AS $socket) $sids[] = $this->getSID($socket);
-				foreach ($this->sendq AS $entry)
+				foreach ($write AS $socket)
 				{
-					if (in_array($entry['sid'], $sids))
+					$sid = $this->getSID($socket);
+
+					// if there is no entry in the sendq for this, then something got screwed up.
+					if (isset($this->sendq[$sid]))
+						$length = strlen($this->sendq[$sid]);
+					else
+						continue;
+
+					// if the length is 0, something else got screwed up.
+					if ($length == 0)
 					{
-						$length = strlen($entry['data']);
-						$w = 0;
-						while ($w < $length)
-							$w += socket_write($this->sockets[$entry['sid']]['socket'], $entry['data']);
-						array_shift($this->sendq);
+						unset($this->sendq[$sid]);
+						continue;
 					}
-					else break;
+
+					// try to write. $w is how many bytes are written.
+					$w = socket_write($socket, $this->sendq[$sid]);
+				
+					// if this is greater than 0, but less than the total, cut off the part that was written
+					// and wait until we can write again. otherwise, unset the sendq entry
+					if (($w < $length) && ($w > 0))
+						$this->sendq[$sid] = substr($this->sendq[$sid], $w);
+					else if ($w == $length)
+						unset ($this->sendq[$sid]);
+						
 				}
+
+				unset($sid);
 			}
 
 			if (!empty($read))
 			{
-				foreach ($read AS $socket) $sids[] = $this->getSID($socket);
-				foreach ($sids AS $sid)
+				foreach ($read AS $socket)
 				{
+					// get the socket id
+					$sid = $this->getSID($socket);
+
 					// if it's a listener, then we have a connection.
 					if (self::getType($sid) == SH_LISTENER)
 					{
@@ -91,15 +109,16 @@ final class SocketHandler extends Singleton
 							'socket' => $client,
 							'address' => $address,
 							'port' => $port,
-							'callback' => call_user_func($this->sockets[$sid]['callback'], $csid)
+							'parent' => call_user_func(array($this->sockets[$sid]['parent'], 'connect'), $csid)
 						);
 					}
 					else
 					{
 						$data = socket_read($this->sockets[$sid]['socket'], 65536);
-						while (strlen($data) > 0)
-							$data = call_user_func($this->sockets[$sid]['callback'], $sid, $data);
+						call_user_func(array($this->sockets[$sid]['parent'], 'read'), $sid, $data);
 					}
+
+					unset($sid);
 				}
 			}
 		}
@@ -108,7 +127,7 @@ final class SocketHandler extends Singleton
 	private function getSID($socket)
 	{
 		foreach ($this->sockets AS $sid => $data)
-			if ($data['socket'] == $socket) return $sid;
+			if ($data['socket'] === $socket) return $sid;
 	}
 
 	public static function getType($sid)
@@ -117,7 +136,6 @@ final class SocketHandler extends Singleton
 		{
 			case 's': return SH_SERVER;
 			case 'c': return SH_CLIENT;
-			case 'l': return SH_LISTENER;
 			default: return SH_UNKNOWN;
 		}
 	}
@@ -127,9 +145,12 @@ final class SocketHandler extends Singleton
 		$this->interrupt = TRUE;
 	}
 
-	public function createSocket($address, $port, $callback)
+	public function createSocket($address, $port, $parent)
 	{
-		$sid = uniqid('s');
+		// if $object isn't a Client, things will get screwed up later on 
+		if (!($parent instanceof Client)) return FALSE;
+
+		$sid = uniqid('c');
 		if (!$socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP))
 		{
 			_log(L_ERROR, "Unable to create socket %s (%s:%d).", $sid, $address, $port);
@@ -146,14 +167,17 @@ final class SocketHandler extends Singleton
 			'socket' => $socket,
 			'address' => $address,
 			'port' => $port,
-			'callback' => $callback
+			'parent' => $parent
 		);
 		return $sid;
 	}
 
-	public function createListener($bind, $port, $callback)
+	public function createListener($bind, $port, $object)
 	{
-		$sid = uniqid('l');
+		// if $object isn't a Server, things will get screwed up later on 
+		if (!($parent instanceof Server)) return FALSE;
+
+		$sid = uniqid('s');
 		if (!$socket = socket_create(AF_INET, SOCK_STREAM, SOL_TCP))
 		{
 			_log(L_ERROR, "Unable to create listener %s (%s:%d).", $sid, $bind, $port);
@@ -175,15 +199,9 @@ final class SocketHandler extends Singleton
 			'socket' => $socket,
 			'address' => $bind,
 			'port' => $port,
-			'callback' => $callback
+			'parent' => $parent
 		);
 		return $sid;		
-	}
-
-	public function updateCallback($sid, $callback)
-	{
-		if (isset($this->sockets[$sid]))
-			$this->sockets[$sid]['callback'] = $callback;
 	}
 
 	public function send($sid, $format)
@@ -196,10 +214,12 @@ final class SocketHandler extends Singleton
 		else
 			$message = $format;
 
-		$this->sendq[] = array('sid' => $sid, 'data' => $message);
+		$this->sendq[$sid] .= $message;
 	}
 
 	protected function _destroy()
 	{
+		// at some point, we should probably go through and close all of our sockets
+		// but well, I'm a little lazy right now.
 	}
 }

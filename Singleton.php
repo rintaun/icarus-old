@@ -7,13 +7,15 @@
  * See LICENSE file for licensing restrictions              *
  ************************************************************/
 
-if (!defined('_BOUNCE_')) die('This script may not be invoked directly.');
+if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
 abstract class Singleton
 {
 	protected static $_instances;
 
-	abstract protected function __construct();
+	final protected function __construct() {}
+
+	abstract protected function _create();
 	abstract protected function _destroy();
 
 	final public static function getInstance()
@@ -22,6 +24,7 @@ abstract class Singleton
 		if (!isset(self::$_instances[$c]))
 		{
 			self::$_instances[$c] = new $c;
+			call_user_func_array(array(self::$_instances[$c], "_create"), func_get_args());
 		}
 		return self::$_instances[$c];
 	}

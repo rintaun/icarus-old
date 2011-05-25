@@ -7,9 +7,7 @@
  * See LICENSE file for licensing restrictions              *
  ************************************************************/
 
-if (!defined('_BOUNCE_')) die('This script may not be invoked directly.');
-
-require_once("Singleton.php");
+if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
 define('L_DEBUG',   0x01);
 define('L_WARNING', 0x02);
@@ -17,40 +15,42 @@ define('L_NOTICE',  0x04);
 define('L_INFO',    0x08);
 define('L_ERROR',   0x10);
 define('L_FATAL',   0x20);
-define('L_NODEBUG', 0xFE);
-define('L_ALL',     0xFF);
+
+define('LOG_NODEBUG', 0xFE);
+define('LOG_ALL',     0xFF);
 
 final class Logger extends Singleton
 {
 
-	private $log = array();
+	private $logdata = array();
 	private $fd = NULL;
 	private $logfile = "";
-	private $loglevel = L_ALL;
+	private $loglevel = LOG_ALL;
 
-        protected function __construct()
+	private $forked = FALSE;
+
+        protected function _create($filename = "icarus.log")
         {
-		$config = Configurator::getInstance();
-
-		if (isset($GLOBALS['logfile']))
-			$this->logfile = $GLOBALS['logfile'];
-		else
+		if (!is_null($filename))
 		{
- 			$this->logfile = $config->logfile;
+			$this->logfile = $filename;
+			$this->fd = fopen($this->logfile, 'a+');
 		}
-
-		$this->logfile = "log/".basename($this->logfile);
-		
-		$this->fd = fopen($this->logfile, 'a+');
         }
-	
+
+	public function setLogfile($filename)
+	{
+		if (!empty($filename))
+		{
+			$this->logfile = $filename;
+			$this->fd = fopen($this->logfile, 'a+');
+		}
+	}
+
 	public function __get($name)
 	{
 		if ($name == "log")
-		{
-			$logger = Logger::getInstance();
-			return $logger->log;
-		}
+			return $this->logdata;
 	}
 
 	public function log($level, $format, $args=NULL)
@@ -62,47 +62,32 @@ final class Logger extends Singleton
 		else
 			$message = $format;
 
-		$this->log[] = array(
+		$this->logdata[] = array(
 			'time' => $time,
 			'level' => $level,
 			'message' => $message
 		);
 
-		$logentry = sprintf("[%s] %s", date("H:i", $time), $message)."\n";
+		$logentry = sprintf("[%s] %s", date("H:i", $time), $message);
 
 		if ($this->loglevel & $level)
 		{
-			if ($GLOBALS['forked'] != true)
-				echo $logentry;
+			if ($this->forked != TRUE)
+				echo $logentry."\n";
 			if (is_resource($this->fd))
 				fwrite($this->fd, $logentry);
 		}
+	}
+
+	public function fork()
+	{
+		$this->forked = TRUE;
 	}
 
         protected function _destroy()
         {
 		fwrite($this->fd,"\n");
 		fclose($this->fd);
+		unset($this);
         }
-}
-
-
-function _log($level, $format)
-{
-	$logger = Logger::getInstance();
-	$args = func_get_args();
-	array_shift($args);
-	array_shift($args);
-
-	$logger->log($level, $format, $args);
-}
-
-function _die($format)
-{
-	$logger = Logger::getInstance();
-	$args = func_get_args();
-	array_shift($args);
-
-	$logger->log(L_FATAL, "Fatal Error! ".$format, $args);
-	_exit();
 }
