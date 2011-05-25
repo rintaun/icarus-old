@@ -22,10 +22,10 @@ define('LOG_ALL',     0xFF);
 final class Logger extends Singleton
 {
 
-	private $logdata = array();
+	public $log = array();
 	private $fd = NULL;
 	private $logfile = "";
-	private $loglevel = LOG_ALL;
+	private $loglevel = LOG_NODEBUG;
 
 	private $forked = FALSE;
 
@@ -42,15 +42,11 @@ final class Logger extends Singleton
 	{
 		if (!empty($filename))
 		{
+			if (is_resource($this->fd)) fclose($this->fd);
+
 			$this->logfile = $filename;
 			$this->fd = fopen($this->logfile, 'a+');
 		}
-	}
-
-	public function __get($name)
-	{
-		if ($name == "log")
-			return $this->logdata;
 	}
 
 	public function log($level, $format, $args=NULL)
@@ -62,7 +58,7 @@ final class Logger extends Singleton
 		else
 			$message = $format;
 
-		$this->logdata[] = array(
+		$this->log[] = array(
 			'time' => $time,
 			'level' => $level,
 			'message' => $message
