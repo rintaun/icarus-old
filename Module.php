@@ -11,7 +11,7 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 
 abstract class Module extends EventHandler {
 	private $sid = "";
-	priate $parent;
+	protected $parent;
 
 	final public function __construct($parent, $name, $config)
 	{

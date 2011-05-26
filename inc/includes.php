@@ -20,6 +20,7 @@ require_once("SocketHandler.php");
 
 require_once("Client.php");
 require_once("Server.php");
+require_once("Module.php");
 
 require_once("Icarus.php");
 

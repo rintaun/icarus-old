@@ -9,7 +9,7 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-class Client_IRC extends Client{
+class Client_IRC extends Client {
 	private $name;
 	private $config;
 
@@ -17,12 +17,20 @@ class Client_IRC extends Client{
 
 	private $registering;
 
+	private $mynick;
+	private $myuser;
+	private $myname;
+
 	public function _create($name, $config)
 	{
 		$this->name = $name;
 		$this->config = $config;
 
 		$this->registering = TRUE;
+
+		$this->mynick = $config['nick'];
+		$this->myuser = $config['username'];
+		$this->myname = $config['realname'];
 
 		$this->nick($config['nick']);
 		$this->user($config['username'], $config['realname']);
@@ -51,6 +59,8 @@ class Client_IRC extends Client{
 				$this->readq = "";
 			}
 
+			$line = trim($line);
+
 			_log(L_DEBUG, $line);
 
 			preg_match($irc, $line, $matches);
@@ -65,17 +75,27 @@ class Client_IRC extends Client{
 				$return['freeform'] = TRUE;
 			}
 
+			if ((!empty($return['origin'])) && (preg_match('/(?P<nick>[^!]+)!(?P<user>[^@]+)@(?P<host>.+)/', $return['origin'], $matches)))
+			{
+				unset($matches[1]);
+				unset($matches[2]);
+				unset($matches[3]);
+				$return['origin'] = $matches;
+			}
+
 			if (is_numeric($return['command']))
 				if (method_exists($this, 'numeric_' . $return['command']))
-					call_user_func(array($this, 'numeric_' . $return['command']), $return);
+					call_user_func(array($this, 'numeric_' . $return['command']), $return['origin'], $return['params']);
 
 			if (method_exists($this, 'cmd_' . $return['command']))
-				call_user_func(array($this, 'cmd_' . $return['command']), $return);
+				call_user_func(array($this, 'cmd_' . $return['command']), $return['origin'], $return['params']);
 		}
 	}
 
-	private function onConnect()
+	private function numeric_001()
 	{
+		$this->registering = false;
+
 		if (is_array($this->config['channel']))
 			foreach ($this->config['channel'] AS $channel => $params)
 			{
@@ -84,23 +104,106 @@ class Client_IRC extends Client{
 				else
 					$this->send("JOIN %s", $channel);
 			}
+
+		$this->eventPost('connected');
 	}
 
-	private function numeric_001()
+	private function cmd_ping($origin, $params)
 	{
-		$this->registering = false;
-		$this->onConnect();
-	}
-
-	private function cmd_ping($d)
-	{
-		if (isset($d['params'][0]))
-			$this->send("PONG :%s", $d['params'][0]);
+		if (isset($params[0]))
+			$this->send("PONG :%s", $params[0]);
 		else
 			$this->send("PONG");
 	}
 
-	private function nick($nickname)
+	private function cmd_privmsg($origin, $params)
+	{
+		if ($params[0] == $this->mynick)
+			$this->eventPost('privmsgme', $origin, $params);
+		else
+			$this->eventPost('privmsg', $origin, $params);
+	}
+
+	private function cmd_part($origin, $params)
+	{
+		if ((!isset($this->channels[$params[0]])) || (!is_array($this->channels[$params[0]])))
+		{
+			_log(L_WARNING, "%s: Received part for %s, but I didn't know I was there!", get_called_class(), $params[0]);
+			return;
+		}
+
+		if ($origin['nick'] == $this->mynick)
+		{
+			$this->eventPost('mypart', $origin, $params);
+			unset($this->channels[$params[0]]);
+		}
+		else
+		{
+			foreach ($this->channels[$params[0]] AS $key => $user)
+			{
+				if ($user['nick'] == $origin['nick'])
+				{
+					$this->eventPost('part', $origin, $params);
+					unset($this->channels[$params[0]][$key]);
+				}
+			}
+		}
+	}
+
+	private function cmd_join($origin, $params)
+	{
+		if ($origin['nick'] == $this->mynick)
+		{
+			$this->channels[$params[0]] = array();
+			$this->eventPost('myjoin', $origin, $params);
+			return;
+		}
+		else if ((!isset($this->channels[$params[0]])) || (!is_array($this->channels[$params[0]])))
+		{
+			_log(L_WARNING, "%s: Received join for %s, but I didn't know I was there!", get_called_class(), $params[0]);
+		}
+		else
+		{
+			$this->channels[$params[0]][] = $origin;
+			$this->eventPost('join', $origin, $params);
+		}
+	}
+
+	public function isChanUser($chan, $nick)
+	{
+		if ((!isset($this->channels[$chan])) || (!is_array($this->channels[$chan])))
+			return FALSE;
+
+		foreach ($this->channels[$chan] AS $key => $user)
+		{
+			if ($user['nick'] == $nick)
+				return TRUE;
+		}
+
+		return FALSE;
+	}
+
+	public function privmsg($target, $text)
+	{
+		$this->send("PRIVMSG %s :%s", $target, $text);
+	}
+
+	public function join ($target, $key="")
+	{
+		$this->send("JOIN %s :%s", $target, $key);
+	}
+
+	public function part($target, $reason="")
+	{
+		$this->send("PART %s :%s", $target, $reason);
+	}
+
+	public function quit($reason="")
+	{
+		$this->send("QUIT :%s", $reason);
+	}
+
+	public function nick($nickname)
 	{
 		$this->send("NICK %s", $nickname);
 	}
@@ -110,7 +213,7 @@ class Client_IRC extends Client{
 		$this->send("USER %s * * :%s", $username, $realname);
 	}
 
-	private function send($format)
+	public function send($format)
 	{
                 if (strlen($format) == 0) return;
 

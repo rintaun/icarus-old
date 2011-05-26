@@ -19,12 +19,6 @@ abstract class EventHandler
 
 	public function eventAdd($event, $callback, $priority=0)
 	{
-		if (!is_callable($callback))
-		{
-			_log(L_ERROR, "%s->eventAdd(): Received invalid callback %s", get_called_class(), (is_array($callback)) ? implode('->', $callback) : $callback);
-			return FALSE;
-		}
-
 		$eid = uniqid('e');
 
 		$this->eventheap[$event][$eid] = array(
@@ -32,8 +26,7 @@ abstract class EventHandler
 			'callback' => $callback
 		);
 
-		_log(L_DEBUG, "%s->eventAdd(): (%s) Adding callback %s for event %s at %d priority", get_called_class(), $eid, 
-			(is_array($callback)) ? implode('->', $callback) : $callback, $event, $priority);
+		_log(L_DEBUG, "%s->eventAdd(): (%s) Adding new callback for event %s at %d priority", get_called_class(), $eid, $event, $priority);
 
 		return $eid;
 	}
@@ -76,9 +69,11 @@ abstract class EventHandler
 
 		$this->eventSort($event);
 
+		_log(L_DEBUG,"%s->eventPost(): Posting event %s", get_called_class(), $event);
+
 		foreach ($this->eventheap[$event] AS $eid => $entry)
 		{
-			call_user_func_array($entry['callback'], $args);
+			if ((call_user_func_array($entry['callback'], $args)) === FALSE) break;
 		}
 	}
 

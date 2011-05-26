@@ -41,12 +41,12 @@ abstract class Client extends EventHandler {
 				$keyinfo = explode(":", $key);
 
 				$type = 'Module_' . $keyinfo[0];
-				$name = $keyinfo[1];
+				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
-				if (file_exists('modules/' . $type . '.php')
+				if (file_exists('modules/' . $type . '.php'))
 				{
 					require_once('modules/' . $type . '.php');
-					new $type($this, $name, $this->config['modules'][$key]);
+					new $type($this, $name, $this->config['module'][$key]);
 				}
 				else
 					_log(L_WARNING, '%s: could not find %s', get_called_class(), $type);

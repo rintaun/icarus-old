@@ -38,6 +38,9 @@ final class Icarus extends Singleton
 		else
 			$l->debug(FALSE);
 
+		if (isset($c->config['die']))
+			_die("Icarus: read the config file!");
+
 		$this->loadClients();
 		$this->loadServers();
 
@@ -57,7 +60,7 @@ final class Icarus extends Singleton
 				$keyinfo = explode(":", $key);
 
 				$type = 'Client_' . $keyinfo[0];
-				$name = $keyinfo[1];
+				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
 				if (file_exists('clients/' . $type . '.php'))
 				{
@@ -79,7 +82,7 @@ final class Icarus extends Singleton
 				$keyinfo = explode(":", $key);
 
 				$type = 'Server_' . $keyinfo[0];
-				$name = $keyinfo[1];
+				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
 				if (file_exists('servers/' . $type . '.php'))
 				{
