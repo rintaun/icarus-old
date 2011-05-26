@@ -11,14 +11,19 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 
 abstract class Client extends EventHandler {
 	private $sid = "";
+	private $config;
 
 	final public function __construct($name, $config)
 	{
+		$this->config = $config;
+
 		if ((!isset($config['server'])) || (!isset($config['port'])))
 			_die("Client %s: Didnt get a server or port value!", $name);
 
 		$SH = SocketHandler::getInstance();
 		$this->sid = $SH->createSocket($config['server'], $config['port'], $this);
+
+		$this->loadModules();
 
 		$this->_create($name, $config);
 	}
@@ -26,6 +31,26 @@ abstract class Client extends EventHandler {
 	final public function __destruct()
 	{
 		$this->_destroy();
+	}
+
+	public function loadModules()
+	{
+		if ((isset($this->config['module'])) && (is_array($this->config['module'])))
+			foreach ($this->config['module'] AS $key => $entry)
+			{
+				$keyinfo = explode(":", $key);
+
+				$type = 'Module_' . $keyinfo[0];
+				$name = $keyinfo[1];
+
+				if (file_exists('modules/' . $type . '.php')
+				{
+					require_once('modules/' . $type . '.php');
+					new $type($this, $name, $this->config['modules'][$key]);
+				}
+				else
+					_log(L_WARNING, '%s: could not find %s', get_called_class(), $type);
+			}
 	}
 
 	public function read($sid, $data)

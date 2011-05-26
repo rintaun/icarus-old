@@ -11,18 +11,46 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 
 abstract class Server extends EventHandler {
 	private $sid = "";
+	private $config;
 
-	final public function __construct($address, $port)
+	final public function __construct($name, $config)
 	{
+		$this->config = $config;
+
+		if ((!isset($config['listen'])) || (!isset($config['port'])))
+			_die("Server %s: Didn't get a listening address or port value!", $name);
+
 		$SH = SocketHandler::getInstance();
 		// $this->sid = $SH->createListener(etc. etc. etc.)
 
-		$this->_create();
+		$this->loadModules();
+
+		$this->_create($name, $config);
 	}
 
 	final public function __destruct()
 	{
 		$this->_destroy();
+	}
+
+	public function loadModules()
+	{
+		if ((isset($this->config['module'])) && (is_array($this->config['module'])))
+			foreach ($this->config['module'] AS $key => $entry)
+			{
+				$keyinfo = explode(":", $key);
+
+				$type = 'Module_' . $keyinfo[0];
+				$name = $keyinfo[1];
+
+				if (file_exists('modules/' . $type . '.php')
+				{
+					require_once('modules/' . $type . '.php');
+					new $type($this, $name, $this->config['modules'][$key]);
+				}
+				else
+					_log(L_WARNING, '%s: could not find %s', get_called_class(), $type);
+			}
 	}
 
 	public function connect($sid)
@@ -48,6 +76,6 @@ abstract class Server extends EventHandler {
 	}
 
 	abstract function parse($data);
-	abstract function _create();
+	abstract function _create($name, $config);
 	abstract function _destroy();
 }
