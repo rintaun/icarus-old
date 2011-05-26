@@ -11,6 +11,7 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 
 // yeah... I wanted to include them in alphabetical order,
 // but meh, this one DEFINITELY needs to come first.
+require_once("EventHandler.php");
 require_once("Singleton.php");
 
 require_once("Configurator.php");

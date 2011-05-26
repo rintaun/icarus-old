@@ -9,7 +9,7 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-abstract class Singleton
+abstract class Singleton extends EventHandler
 {
 	protected static $_instances;
 

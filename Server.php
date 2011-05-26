@@ -9,7 +9,7 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-abstract class Server {
+abstract class Server extends EventHandler {
 	private $sid = "";
 
 	final public function __construct($address, $port)
