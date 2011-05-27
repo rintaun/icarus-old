@@ -1,6 +1,6 @@
 <?php
 /************************************************************
- * icarus v0.1-alpha -- an IRC framework for PHP            *
+ * icarus v1.0-beta -- an IRC framework for PHP            *
  * Author: rintaun - Matthew J. Lanigan <rintaun@gmail.com> *
  *                                                          *
  * Copyright 2011 Matthew J. Lanigan.                       *
@@ -9,7 +9,7 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-$GLOBALS['version'] = "0.1-alpha";
+$GLOBALS['version'] = "1.0-beta";
 $GLOBALS['fork'] = FALSE;
 
 

@@ -1,6 +1,6 @@
 <?php
 /************************************************************
- * icarus v0.1-alpha -- an IRC framework for PHP            *
+ * icarus v1.0-beta -- an IRC framework for PHP            *
  * Author: rintaun - Matthew J. Lanigan <rintaun@gmail.com> *
  *                                                          *
  * Copyright 2011 Matthew J. Lanigan.                       *
