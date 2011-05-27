@@ -7,7 +7,7 @@
  * See LICENSE file for licensing restrictions              *
  ************************************************************/
 
-class Module_BotCommands extends Module {
+class Module_IRCBot extends Module {
 	private $prefix;
 
 	public function _create($name, $config)
