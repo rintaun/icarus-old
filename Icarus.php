@@ -12,6 +12,8 @@ ini_set('memory_limit', '16M');
 
 define('_ICARUS_', TRUE);
 
+$location = __FILE__;
+
 require_once("inc/includes.php");
 
 final class Icarus extends Singleton
@@ -62,9 +64,9 @@ final class Icarus extends Singleton
 				$type = 'Client_' . $keyinfo[0];
 				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
-				if (file_exists('clients/' . $type . '.php'))
+				if (file_exists('/clients/' . $type . '.php'))
 				{
-					require_once('clients/' . $type . '.php');
+					require_once('/clients/' . $type . '.php');
 					new $type($name, $c->config['client'][$key]);
 				}
 				else
@@ -84,9 +86,9 @@ final class Icarus extends Singleton
 				$type = 'Server_' . $keyinfo[0];
 				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
-				if (file_exists('servers/' . $type . '.php'))
+				if (file_exists('/servers/' . $type . '.php'))
 				{
-					require_once('servers/' . $type . '.php');
+					require_once('/servers/' . $type . '.php');
 					$server = new $type($name, $c->config['client'][$key]);
 				}
 				else

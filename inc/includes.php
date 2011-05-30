@@ -24,7 +24,13 @@ require_once("Module.php");
 
 require_once("Icarus.php");
 
+$path = pathinfo($location);
+chroot($path['dirname']);
 
+
+$GLOBALS['configdir'] = "/etc";
+$GLOBALS['vardir'] = "/var";
+$GLOBALS['tmpdir'] = "/tmp";
 
 function _exit()
 {
