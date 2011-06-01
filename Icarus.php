@@ -19,6 +19,8 @@ require_once("inc/includes.php");
 final class Icarus extends Singleton
 {
 	private $running = FALSE;
+	private $servers = array();
+	public $clients = array();
 
 	protected function _create()
 	{
@@ -35,8 +37,12 @@ final class Icarus extends Singleton
 		if (isset($c->config['logfile']))
 			$l->setLogfile($c->config['logfile']);
 
-		if ((isset($c->config['debugmode'])) && ($c->config['debugmode'] == "true"))
-			$l->debug(TRUE);
+		if ((!isset($c->config['debugmode'])) || ($c->config['debugmode'] == "false"))
+			$l->debug(FALSE);
+		elseif (is_numeric($c->config['debugmode']))
+			$l->debug($c->config['debugmode']);
+		elseif ($c->config['debugmode'] == "true")
+			$l->debug(3);
 		else
 			$l->debug(FALSE);
 
@@ -64,9 +70,9 @@ final class Icarus extends Singleton
 				$type = 'Client_' . $keyinfo[0];
 				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
-				if (file_exists('/clients/' . $type . '.php'))
+				if (file_exists($GLOBALS['clientsdir'] . $type . '.php'))
 				{
-					require_once('/clients/' . $type . '.php');
+					require_once($GLOBALS['clientsdir'] . $type . '.php');
 					new $type($name, $c->config['client'][$key]);
 				}
 				else
@@ -86,9 +92,9 @@ final class Icarus extends Singleton
 				$type = 'Server_' . $keyinfo[0];
 				$name = (isset($keyinfo[1])) ? $keyinfo[1] : "";
 
-				if (file_exists('/servers/' . $type . '.php'))
+				if (file_exists($GLOBALS['serversdir'] . $type . '.php'))
 				{
-					require_once('/servers/' . $type . '.php');
+					require_once($GLOBALS['serversdir'] . $type . '.php');
 					$server = new $type($name, $c->config['client'][$key]);
 				}
 				else

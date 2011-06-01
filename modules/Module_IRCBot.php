@@ -42,6 +42,8 @@ class Module_IRCBot extends Module {
 
 	public function cmd_eval($origin, $target, $params)
 	{
+		$quiet = FALSE;
+
 		if (strtoupper($params[0]) == "--QUIET")
 		{
 			$quiet = TRUE;
@@ -50,7 +52,7 @@ class Module_IRCBot extends Module {
 
 		$params = implode(" ", $params);
 
-		if ($quiet != TRUE)
+		if ($quiet !== TRUE)
 		{
 			ob_start();
 			eval($params);

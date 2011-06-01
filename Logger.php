@@ -9,14 +9,16 @@
 
 if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n");
 
-define('L_DEBUG',   0x01);
-define('L_WARNING', 0x02);
-define('L_NOTICE',  0x04);
-define('L_INFO',    0x08);
-define('L_ERROR',   0x10);
-define('L_FATAL',   0x20);
+define('L_FATAL',   0x01);
+define('L_ERROR',   0x02);
+define('L_INFO',    0x04);
+define('L_NOTICE',  0x08);
+define('L_WARNING', 0x10);
+define('L_DEBUG',   0x20);
+define('L_DEBUG2',  0x40);
+define('L_DEBUG3',  0x80);
 
-define('LOG_NODEBUG', 0xFE);
+define('LOG_NODEBUG', 0x1F);
 define('LOG_ALL',     0xFF);
 
 final class Logger extends Singleton
@@ -86,7 +88,11 @@ final class Logger extends Singleton
 	{
 		switch ($onoff)
 		{
-			case TRUE:
+			case 3:
+				$this->loglevel = $this->loglevel | L_DEBUG3;
+			case 2:
+				$this->loglevel = $this->loglevel | L_DEBUG2;
+			case 1:
 				$this->loglevel = $this->loglevel | L_DEBUG;
 				break;
 			case FALSE:

@@ -12,6 +12,7 @@ if (!defined('_ICARUS_')) die('This script may not be invoked directly.' . "\n")
 abstract class Server extends EventHandler {
 	private $sid = "";
 	private $config;
+	public $modules = array();
 
 	final public function __construct($name, $config)
 	{
@@ -43,10 +44,10 @@ abstract class Server extends EventHandler {
 				$type = 'Module_' . $keyinfo[0];
 				$name = $keyinfo[1];
 
-				if (file_exists('/modules/' . $type . '.php'))
+				if (file_exists($GLOBALS['modulesdir'] . $type . '.php'))
 				{
-					require_once('/modules/' . $type . '.php');
-					new $type($this, $name, $this->config['modules'][$key]);
+					require_once($GLOBALS['modulesdir'] . $type . '.php');
+					$this->modules[] = new $type($this, $name, $this->config['modules'][$key]);
 				}
 				else
 					_log(L_WARNING, '%s: could not find %s', get_called_class(), $type);

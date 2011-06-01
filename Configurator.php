@@ -21,7 +21,7 @@ final class Configurator extends Singleton
 		$logger = Logger::getInstance(NULL);
 
 		if (!is_null($filename)) $this->configfile = $filename;
-		else $this->configfile = getcwd() . '/etc/icarus.conf';
+		else $this->configfile = $GLOBALS['etcdir'] . 'icarus.conf';
 
 		if (!file_exists($this->configfile)) _die("Fatal Error: Configuration file (%s) not found.", $this->configfile);
 

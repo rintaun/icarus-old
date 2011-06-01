@@ -25,12 +25,15 @@ require_once("Module.php");
 require_once("Icarus.php");
 
 $path = pathinfo($location);
-chroot($path['dirname']);
+$basedir = $path['dirname'];
 
 
-$GLOBALS['configdir'] = "/etc";
-$GLOBALS['vardir'] = "/var";
-$GLOBALS['tmpdir'] = "/tmp";
+$GLOBALS['etcdir'] = realpath($basedir . "/etc") . "/";
+$GLOBALS['vardir'] = realpath($basedir . "/var") . "/";
+$GLOBALS['tmpdir'] = realpath($basedir . "/tmp") . "/";
+$GLOBALS['modulesdir'] = realpath($basedir . "/modules") . "/";
+$GLOBALS['clientsdir'] = realpath($basedir . "/clients") . "/";
+$GLOBALS['serversdir'] = realpath($basedir . "/servers") . "/";
 
 function _exit()
 {

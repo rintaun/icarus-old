@@ -23,11 +23,13 @@ function signal_handler ($signo)
 			_log(L_INFO, "Received SIGINT. Stopping...");
 			$SH = SocketHandler::getInstance();
 			$SH->interrupt();
+			exit();
 			break;
 		case SIGTERM:
 			_log(L_INFO, "Received SIGTERM. Stopping...");
 			$SH = SocketHandler::getInstance();
 			$SH->interrupt();
+			exit();
 			break;
 		case SIGHUP:
 			_log(L_INFO, "Received SIGHUP. Rehashing.");
