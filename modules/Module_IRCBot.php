@@ -34,6 +34,12 @@ class Module_IRCBot extends Module {
 		}
 	}
 
+	public function cmd_chatbot($origin, $target, $params)
+	{
+		$params = implode(" ", $params);
+		$this->parent->eventPost('chatbot', $origin, $target, $params);
+	}
+
 	public function cmd_raw($origin, $target, $params)
 	{
 		$params = implode(" ", $params);

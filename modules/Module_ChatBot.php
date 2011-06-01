@@ -18,6 +18,7 @@ class Module_ChatBot extends Module {
 	{
 		$this->name = $name;
 
+		$this->parent->eventAdd('chatbot', array($this, 'respmsg'), 10);
 		$this->parent->eventAdd('privmsg', array($this, 'recvmsg'), 10);
 		$this->parent->eventAdd('privmsgme', array($this, 'recvmsg'), 10);
 
@@ -39,55 +40,52 @@ class Module_ChatBot extends Module {
 					(-1, "<end>")');
 	}
 
+	public function respmsg($origin, $target, $params)
+	{
+		if (substr($target,0,1) != "#") $target = $origin['nick'];
+
+		$this->learn($params);
+		$this->parent->privmsg($target, $this->generateResponse($params));
+	}
+
 	public function recvmsg($origin, $params)
 	{
 		if (substr($params[0],0,1) == "#") $target = $params[0];
 		else $target = $origin['nick'];
 
 		$this->learn($params[1]);
-
-		$response = $this->generateResponse($params[1]);
-		if ($response == $params[1]) return;
-
-		$this->parent->privmsg($target, $response);
 	}
 
-	public function learn($text, $n=6)
+	public function gramSplit($text)
 	{
 		$text = preg_replace("/([,.!?:;()\\/])/", " \\1 ", $text);
 		$text = str_replace("  ", " ", $text);
 
 		$text = explode(" ", $this->db->escapeString($text));
-		$end = FALSE;
 
-		foreach ($text AS $key => $word)
+		return $text;
+	}
+
+	public function learn($text, $n=6)
+	{
+		$text = $this->gramSplit($text);
+
+		foreach ($text AS $key => $gram)
 		{
-			if (empty($word)) continue;
-
-			$gram = $word;
-			for ($i = 1; $i < $n; $i++)
-			{
-				if (!isset($text[$key + $i]))
-				{
-					$end = TRUE;
-					break(2);
-				}
-				$gram .= " " . $text[$key + $i];
-			}
+			if (empty($gram)) continue;
 
 			$this->db->exec('INSERT OR IGNORE INTO grams VALUES (NULL, "' . $gram . '")');
 			$result = $this->db->query('SELECT * FROM grams WHERE gram="' . $gram . '"');
 			$id = $result->fetchArray(SQLITE3_ASSOC);
 			$id = $id['id'];
 
-			if ($key == 0) $right = CB_MARKOV_START;
-			else $right = $lastID;
+			if ($key == 0) $left = CB_MARKOV_START;
+			else $left = $lastID;
 
-			$node = @$this->db->exec('INSERT INTO nodes VALUES (' . $right . ', ' . $id . ', 1)');
+			$node = @$this->db->exec('INSERT INTO nodes VALUES (' . $left . ', ' . $id . ', 1)');
 			if ($node === FALSE)
 			{
-				$query = 'UPDATE nodes SET uses=uses+1 WHERE left="' . $right . '" AND right="' . $id . '"';
-				var_dump($query);
+				$query = 'UPDATE nodes SET uses=uses+1 WHERE left="' . $left . '" AND right="' . $id . '"';
 				$this->db->exec($query);
 			}
 			$lastID = $id;
@@ -98,73 +96,135 @@ class Module_ChatBot extends Module {
 			$this->db->exec('UPDATE nodes SET uses=uses+1 WHERE left="' . $lastID . '" AND right="' . CB_MARKOV_END . '"');
 	}
 
-	public function generateResponse($text)
+	private function buildRightQuery(array $base, $level=0)
+	{
+		$query = sprintf('SELECT l%d.left AS l%dleft, l%d.right AS l%dright, l%d.uses AS l%duses, * FROM nodes l%d',
+					$level, $level, $level, $level, $level, $level, $level);		
+
+		$gram = array_shift($base);
+		if ((is_array($base)) && (!empty($base)))
+		{
+			$query .= sprintf(' JOIN (%s) ON l%dright=l%dleft', $this->buildRightQuery($base, ($level+1)), $level, ($level+1));
+		}
+
+		$query .= sprintf(' WHERE l%dleft="%d"', $level, $this->getGramID($gram));
+		return $query;
+	}
+
+	public function getRightTable($base)
+	{
+		$query = $this->buildRightQuery($base);
+		//_log(L_DEBUG3, "Module_ChatBot->getRightTable(): Generated query: %s", $query);
+
+		$order = count($base) - 1;
+
+		$result = $this->db->query($query);
+		while ($row = $result->fetchArray())
+		{
+			$table[$row["l{$order}right"]] = 1;
+		}
+		return $table;
+	}
+
+	private function buildLeftQuery(array $base, $level=0)
+	{
+		$query = sprintf('SELECT l%d.left AS l%dleft, l%d.right AS l%dright, l%d.uses AS l%duses, * FROM nodes l%d',
+					$level, $level, $level, $level, $level, $level, $level);		
+
+		$gram = array_shift($base);
+		if ((is_array($base)) && (!empty($base)))
+		{
+			$query .= sprintf(' JOIN (%s) ON l%dright=l%dleft', $this->buildRightQuery($base, ($level+1)), $level, ($level+1));
+		}
+
+		$query .= sprintf(' WHERE l%dright="%d"', $level, $this->getGramID($gram));
+		return $query;
+	}
+
+	public function getLeftTable($base)
+	{
+		$query = $this->buildLeftQuery($base);
+		//_log(L_DEBUG3, "Module_ChatBot->getLeftTable(): Generated query: %s", $query);
+
+		$order = count($base) - 1;
+
+		$result = $this->db->query($query);
+		while ($row = $result->fetchArray())
+		{
+			$table[$row["l{$order}left"]] = 1;
+		}
+		return $table;
+	}
+
+	public function getNodes($gram)
+	{
+		$gid = $this->getGramID($gram);
+
+		$query = 'SELECT * FROM nodes WHERE left="' . $gid . '" OR right = "' . $gid . '"';
+		$result = $this->db->query($query);
+		while ($row = $result->fetchArray())
+			$nodes[] = $row;
+
+		return $nodes;
+	}
+
+	public function getGram($gid)
+	{
+		$query = 'SELECT gram FROM grams WHERE id="' . $gid . '"';
+		$result = $this->db->query($query);
+		$row = $result->fetchArray();
+		return $row['gram'];
+	}
+
+	public function getGramID($gram)
+	{
+		$query = 'SELECT id FROM grams WHERE gram="' . $gram . '"';
+		$result = $this->db->query($query);
+		$row = $result->fetchArray();
+		return $row['id'];
+	}
+
+	public function generateResponse($text, $order=1)
 	{
 		_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Input: %s", $text);
-		$text = preg_replace("/([,.!?:;()\\/])/", " \\1 ", $text);
-		$text = str_replace("  ", " ", $text);
 
-		$words = explode(" ", $text);
+		$grams = $this->gramSplit($text);
 
-		foreach ($words AS $key => $value)
-			if (strlen($value) < 5) unset($words[$key]);
+		foreach ($grams AS $key => $value)
+			if (strlen($value) < 5) unset($grams[$key]);
 
-		$base = $words[array_rand($words)];
-		_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Base: %s", $base);
+		$base = array($grams[array_rand($grams)]);
+		$bak = $base;
+		$grams = $base;
 
-		$result = $this->db->query('SELECT * FROM grams WHERE gram LIKE "% ' . $base . ' %"
-						OR gram LIKE "' . $base . ' %"
-						OR gram LIKE "% ' . $base . '"');
-		while ($row = $result->fetchArray())
-			if (!empty($row)) $rows[] = $row;
-
-		$respbase = $rows[array_rand($rows)];
-		_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Response Base: %d: %s", $respbase['id'], $respbase['gram']);
-
-		$allnodes = $this->getNodes($respbase['id']);
-
-		$node = $allnodes[array_rand($allnodes)];
-		_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Base Node: %d", $node['id']);
-
-		$id = $node['id'];
-		$bid = $id;
-
-		$nodes = array($node);
-
-		while ($id != CB_MARKOV_START)
+		while (1)
 		{
-			_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Moving to Left: id: %d", $id);
-			$leftnodes = $this->getNodesLeftOf($id);
-			if (empty($leftnodes)) _die("Module_ChatBot->generateResponse(); Got empty leftnodes: %d", $id);
-			$node = $leftnodes[array_rand($leftnodes)];
-			$id = $node['left'];
-			array_unshift($nodes, $node);
+			$table = $this->getLeftTable($base);
+			$next = array_rand($table);
+			if ($next == CB_MARKOV_START) break;
+
+			$gram = $this->getGram($next);
+			array_unshift($grams, $gram);
+			array_unshift($base, $gram);
+
+			if (count($base) > $order) array_pop($base);
 		}
 
-		$id = $bid;
-		while ($id != CB_MARKOV_END)
+		$base = $bak;
+		while (1)
 		{
-			_log(L_DEBUG3, "Module_ChatBot->generateResponse(): Moving to Right: id: %d", $id);
-			$rightnodes = $this->getNodesRightOf($id);
-			$node = $rightnodes[array_rand($rightnodes)];
-			$id = $node['right'];
-			array_push($nodes, $node);
+			$table = $this->getRightTable($base);
+			$next = array_rand($table);
+			if ($next == CB_MARKOV_END) break;
+
+			$gram = $this->getGram($next);
+			array_push($grams, $gram);
+			array_push($base, $gram);
+
+			if (count($base) > $order) array_shift($base);
 		}
 
-		foreach ($nodes AS $entry)
-		{
-			if ($entry['left'] == CB_MARKOV_START) continue;
-
-			$result = $this->db->query('SELECT * FROM grams WHERE id="' . $entry['left'] . '"');
-			$row = $result->fetchArray();
-
-			if ($entry['right'] == CB_MARKOV_END)
-				$response[] = $row['gram'];
-			else
-				$response[] = strtok($row['gram'], " ");
-		}
-
-		$response = implode(" ", $response);
+		$response = implode(" ", $grams);
 		$response = preg_replace("/\s([,.!?:;)\\/])/", "\\1", $response);
 		$response = str_replace(" ( ", " (", $response);
 
@@ -173,6 +233,7 @@ class Module_ChatBot extends Module {
 		return trim($response);
 	}
 
+/*
 	public function getNodes($id)
 	{
 		$rows = array();
@@ -186,6 +247,7 @@ class Module_ChatBot extends Module {
 		}
 		return $rows;
 	}
+*/
 
 	public function getNodesRightOf($id)
 	{
