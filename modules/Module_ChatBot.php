@@ -24,28 +24,29 @@ class Module_ChatBot extends Module {
 
 		$this->db = new SQLite3($GLOBALS['vardir'] . 'Module_ChatBot_' . $this->name);
 
-		$this->db->exec('CREATE TABLE IF NOT EXISTS grams (
-					id INTEGER PRIMARY KEY,
-					gram TEXT NOT NULL UNIQUE)');
-		$this->db->exec('CREATE TABLE IF NOT EXISTS nodes (
-					left INTEGER,
-					right INTEGER,
-					uses INTEGER NOT NULL DEFAULT 1,
-					PRIMARY KEY (left, right),
-					FOREIGN KEY (left)  REFERENCES grams (id) ON DELETE CASCADE,
-					FOREIGN KEY (right) REFERENCES grams (id) ON DELETE CASCADE)');
-		$this->db->exec('INSERT OR IGNORE INTO grams VALUES
-					(-2, "<start>")');
-		$this->db->exec('INSERT OR IGNORE INTO grams VALUES
-					(-1, "<end>")');
+		$this->db->exec(
+			'CREATE TABLE IF NOT EXISTS grams ('	. "\n" .
+			'  id INTEGER PRIMARY KEY,'		. "\n" .
+			'  order INTEGER DEFAULT 1,'		. "\n" .
+			'  gram TEXT NOT NULL'			. "\n" .
+			');'
+		);
+		$this->db->exec(
+			'CREATE TABLE IF NOT EXISTS nodes ('	. "\n" .
+			'  gram_id INTEGER PRIMARY KEY,'	. "\n" .
+			'  prev TEXT NOT NULL,'			. "\n" .
+			'  next TEXT NOT NULL'			. "\n" .
+			');'
+		);
 	}
 
 	public function respmsg($origin, $target, $params)
 	{
 		if (substr($target,0,1) != "#") $target = $origin['nick'];
 
-		$this->learn($params);
-		$this->parent->privmsg($target, $this->generateResponse($params));
+		$response = $this->generateResponse($params, 5);
+		if ($response === FALSE) return;
+		$this->parent->privmsg($target, $response);
 	}
 
 	public function recvmsg($origin, $params)
@@ -96,92 +97,56 @@ class Module_ChatBot extends Module {
 			$this->db->exec('UPDATE nodes SET uses=uses+1 WHERE left="' . $lastID . '" AND right="' . CB_MARKOV_END . '"');
 	}
 
-	private function buildRightQuery(array $base, $level=0)
+	public function getGID($gram)
 	{
-		$query = sprintf('SELECT l%d.left AS l%dleft, l%d.right AS l%dright, l%d.uses AS l%duses, * FROM nodes l%d',
-					$level, $level, $level, $level, $level, $level, $level);		
+		$query = "SELECT id FROM grams WHERE gram='{$gram}'";
+		$result = $this->db->exec($query);
 
-		$gram = array_shift($base);
-		if ((is_array($base)) && (!empty($base)))
+		if (!($result === FALSE))
 		{
-			$query .= sprintf(' JOIN (%s) ON l%dright=l%dleft', $this->buildRightQuery($base, ($level+1)), $level, ($level+1));
+			$row = $result->fetchArray();
+			return $row['id'];
 		}
 
-		$query .= sprintf(' WHERE l%dleft="%d"', $level, $this->getGramID($gram));
-		return $query;
+		return FALSE;
 	}
 
-	public function getRightTable($base)
+	public function getNext($gram, $n=NULL)
 	{
-		$query = $this->buildRightQuery($base);
-		//_log(L_DEBUG3, "Module_ChatBot->getRightTable(): Generated query: %s", $query);
+		if (!is_numeric($gram)) $gram = $this->getGID($gram);
+		if ($gram === FALSE) return FALSE;
 
-		$order = count($base) - 1;
+		$query = "SELECT next FROM nodes WHERE gram_id='{$gram}'";
+		$result = $this->db->exec($query);
 
-		$result = $this->db->query($query);
-		while ($row = $result->fetchArray())
+		if (!($result === FALSE))
 		{
-			$table[$row["l{$order}right"]] = 1;
-		}
-		return $table;
-	}
-
-	private function buildLeftQuery(array $base, $level=0)
-	{
-		$query = sprintf('SELECT l%d.left AS l%dleft, l%d.right AS l%dright, l%d.uses AS l%duses, * FROM nodes l%d',
-					$level, $level, $level, $level, $level, $level, $level);		
-
-		$gram = array_shift($base);
-		if ((is_array($base)) && (!empty($base)))
-		{
-			$query .= sprintf(' JOIN (%s) ON l%dright=l%dleft', $this->buildRightQuery($base, ($level+1)), $level, ($level+1));
+			while ($row = $result->fetchArray())
+				$rows[] = $row;
+			if ($n === NULL) $n = array_rand($rows);
+			return $rows[$n]['next'];
 		}
 
-		$query .= sprintf(' WHERE l%dright="%d"', $level, $this->getGramID($gram));
-		return $query;
+		return FALSE;
 	}
 
-	public function getLeftTable($base)
+	public function getPrev($gram, $n=NULL)
 	{
-		$query = $this->buildLeftQuery($base);
-		//_log(L_DEBUG3, "Module_ChatBot->getLeftTable(): Generated query: %s", $query);
+		if (!is_numeric($gram)) $gram = $this->getGID($gram);
+		if ($gram === FALSE) return FALSE;
 
-		$order = count($base) - 1;
+		$query = "SELECT prev FROM nodes WHERE gram_id='{$gram}'";
+		$result = $this->db->exec($query);
 
-		$result = $this->db->query($query);
-		while ($row = $result->fetchArray())
+		if (!($result === FALSE))
 		{
-			$table[$row["l{$order}left"]] = 1;
+			while ($row = $result->fetchArray())
+				$rows[] = $row;
+			if ($n === NULL) $n = array_rand($rows);
+			return $rows[$n]['prev'];
 		}
-		return $table;
-	}
 
-	public function getNodes($gram)
-	{
-		$gid = $this->getGramID($gram);
-
-		$query = 'SELECT * FROM nodes WHERE left="' . $gid . '" OR right = "' . $gid . '"';
-		$result = $this->db->query($query);
-		while ($row = $result->fetchArray())
-			$nodes[] = $row;
-
-		return $nodes;
-	}
-
-	public function getGram($gid)
-	{
-		$query = 'SELECT gram FROM grams WHERE id="' . $gid . '"';
-		$result = $this->db->query($query);
-		$row = $result->fetchArray();
-		return $row['gram'];
-	}
-
-	public function getGramID($gram)
-	{
-		$query = 'SELECT id FROM grams WHERE gram="' . $gram . '"';
-		$result = $this->db->query($query);
-		$row = $result->fetchArray();
-		return $row['id'];
+		return FALSE;
 	}
 
 	public function generateResponse($text, $order=1)
@@ -197,9 +162,18 @@ class Module_ChatBot extends Module {
 		$bak = $base;
 		$grams = $base;
 
+		$tries = 0;
+
 		while (1)
 		{
 			$table = $this->getLeftTable($base);
+			if (empty($table))
+			{
+				array_shift($grams);
+				array_shift($base);
+				if (++$tries > 10) return FALSE;
+				continue;
+			}
 			$next = array_rand($table);
 			if ($next == CB_MARKOV_START) break;
 
@@ -210,10 +184,18 @@ class Module_ChatBot extends Module {
 			if (count($base) > $order) array_pop($base);
 		}
 
+		$tries = 0;
 		$base = $bak;
 		while (1)
 		{
 			$table = $this->getRightTable($base);
+			if (empty($table))
+			{
+				array_pop($grams);
+				array_pop($base);
+				if (++$tries > 10) return FALSE;
+				continue;
+			}
 			$next = array_rand($table);
 			if ($next == CB_MARKOV_END) break;
 
@@ -293,3 +275,4 @@ class Module_ChatBot extends Module {
 		return $rows;
 	}
 }
+
